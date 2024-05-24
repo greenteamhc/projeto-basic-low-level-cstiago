@@ -1,66 +1,71 @@
-use std::io;
-use std::io::Write;
+use std::io::{self, Write};
 
-fn shift_forward(c: u8, start: u8, end: u8, shift: u32) -> u8 {
-    let interval = (end - start + 1) as u32;
+fn shift_character(character: &mut char, start: char, end: char, shift: i64) {
+    let start: u32 = start as u32;
+    let end: u32 = end as u32;
+    let char_value: u32 = *character as u32;
+    let interval: u32 = end - start + 1;
+    let shift: i64 = shift % interval as i64;
+    let mut shifting: i64 = ((char_value as i64 - start as i64 + shift) % interval as i64) + start as i64;
 
-    (start as u32 + ((c as u32 + shift) - start as u32) % interval) as u8
+    let is_shift_negative: bool = shift < 0;
+    let is_shift_wrapping: bool = (shift * -1) > (char_value as i64 - start as i64);
+
+    if is_shift_negative && is_shift_wrapping {
+        shifting += interval as i64;
+    }
+
+    let shifted: u32 = shifting as u32;
+
+    *character = char::from_u32(shifted).unwrap();
 }
 
-fn shift_backwards(c: u8, start: u8, end: u8, shift: u32) -> u8 {
-    let interval = (end - start + 1) as u32;
+fn encrypt_text(text: &str, shift: i64) -> String {
+    let mut chars: Vec<char> = text.chars().collect();
 
-    (start as u32 + ((c as u32 + interval - (shift % interval) - start as u32) % interval)) as u8
-}
+    for character in &mut chars {
+        let start: char;
+        let end: char;
 
-fn transform(text: &str, key: u32, operation: char) -> String {
-    let mut bytes = text.as_bytes().to_vec();
-
-    for c in &mut bytes {
-        let start: u8;
-        let end: u8;
-
-        match c {
-            b'A'..=b'Z' => {
-                start = b'A';
-                end = b'Z';
+        match character {
+            'A'..='Z' => {
+                start = 'A';
+                end = 'Z';
             },
-            b'a'..=b'z' => {
-                start = b'a';
-                end = b'z';
+            'a'..='z' => {
+                start = 'a';
+                end = 'z';
             },
             _ => continue
         };
 
-        *c = match operation {
-            'e' => shift_forward(*c, start, end, key),
-            'd' => shift_backwards(*c, start, end, key),
-            _ => *c
-        };
+        shift_character(character, start, end, shift);
     }
     
-    String::from_utf8(bytes).expect("Error.")
+    chars.into_iter().collect()
 }
 
-fn encode(text: &str, key: u32) -> String {
-    transform(text, key, 'e')
+fn encrypt_operation(text: &str, key: u32) -> String {
+    encrypt_text(text, key as i64)
 }
 
-fn decode(text: &str, key: u32) -> String {
-    transform(text, key, 'd')
+fn decrypt_operation(text: &str, key: u32) -> String {
+    encrypt_text(text, key as i64 * -1)
 }
 
-fn caesar_cipher() {
+fn main() {
+    println!("--- Caesar Cipher ---\n");
+
     loop {
-        let transform_ops = ['e', 'd'];
+        let encryption_operations = ['e', 'd'];
 
         let mut operation = String::new();
         let mut text = String::new();
         let mut key = String::new();
 
         println!(" ~  Operations");
-        println!("[e] Encode text");
-        println!("[d] Decode text");
+        println!("[e] Encrypt text");
+        println!("[d] Decrypt text");
         println!("[q] Quit");
         println!();
         io::stdout().flush().unwrap();
@@ -77,7 +82,7 @@ fn caesar_cipher() {
             .next()
             .unwrap();
 
-        if !transform_ops.contains(&operation) {
+        if !encryption_operations.contains(&operation) {
             if operation == 'q' {
                 break;
             }
@@ -93,19 +98,20 @@ fn caesar_cipher() {
         print!("Key: ");
         io::stdout().flush().unwrap();
         io::stdin().read_line(&mut key).expect("Key input error.");
-        let key: u32 = key.trim().parse().expect("Invalid key.");
+
+        let key: u32 = match key.trim().parse() {
+            Ok(key) => key,
+            Err(_) => {
+                println!("\nInvalid key.\n");
+                continue;
+            }
+        };
         
         match operation {
-            'e' => println!("\nEncoded text: {}", encode(text.as_str(), key)),
-            'd' => println!("\nDecoded text: {}", decode(text.as_str(), key)),
+            'e' => println!("\nEncrypted text: {}", encrypt_operation(text.as_str(), key)),
+            'd' => println!("\nDecrypted text: {}", decrypt_operation(text.as_str(), key)),
             'q' => break,
             _ => ()
         };
     }
-}
-
-fn main() {
-    println!("--- Caesar Cipher ---\n");
-
-    caesar_cipher();
 }
